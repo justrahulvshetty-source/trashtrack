@@ -4,11 +4,14 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -17,6 +20,8 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+
+const resend = process.env.RESEND_KEY ? new Resend(process.env.RESEND_KEY) : null;
 
 // ─── ADMIN AUTH ───
 const adminSessions = new Set();
@@ -362,8 +367,18 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 
 // ─── WAITLIST (for landing page) ───
 app.post('/api/waitlist', async (req, res) => {
-  const { name, phone, area, complexName } = req.body;
-  if (!name || !phone || !area) return res.status(400).json({ error: 'Missing fields' });
+  const { name, phone, email, area, complexName } = req.body;
+  if (!name || !area) return res.status(400).json({ error: 'Missing fields' });
+  const fullArea = complexName ? area + ' | ' + complexName : area;
+  const { error } = await supabase.from('waitlist').insert({ name, phone: phone || null, email: email || null, area: fullArea });
+  if (error) return res.status(500).json({ error: error.message });
+  if (resend && email) {
+    try { await resend.emails.send({ from: 'TrashTrack <onboarding@resend.dev>', to: email, subject: 'You are on the TrashTrack waitlist', html: '<h1 style="color:#00D084">You are in, '+name+'!</h1><p>We are building TrashTrack for <b>'+fullArea+'</b>. We will WhatsApp you when we go live in your area.</p>' }); console.log('Email sent to '+email); } catch(e) { console.log('Email err: '+e.message); }
+    try { await resend.emails.send({ from: 'TrashTrack <onboarding@resend.dev>', to: 'info.trashtrack@gmail.com', subject: 'New signup: '+name+' from '+fullArea, html: '<h2 style="color:#00D084">New Signup</h2><p>Name: '+name+'</p><p>Email: '+(email||'NA')+'</p><p>Area: '+fullArea+'</p>' }); } catch(e) {}
+  }
+  console.log('Waitlist: '+name+' - '+fullArea);
+  res.json({ ok: true });
+});
 
   const { error } = await supabase.from('waitlist').insert({ name, phone, area: complexName ? `${area} | ${complexName}` : area });
   if (error) return res.status(500).json({ error: error.message });
