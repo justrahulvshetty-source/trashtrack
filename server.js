@@ -380,13 +380,6 @@ app.post('/api/waitlist', async (req, res) => {
   res.json({ ok: true });
 });
 
-  const { error } = await supabase.from('waitlist').insert({ name, phone, area: complexName ? `${area} | ${complexName}` : area });
-  if (error) return res.status(500).json({ error: error.message });
-
-  console.log(`🔔 Waitlist: ${name} (${phone}) — ${area}`);
-  res.json({ ok: true });
-});
-
 app.get('/api/waitlist/count', async (req, res) => {
   const { count } = await supabase.from('waitlist').select('*', { count: 'exact', head: true });
   res.json({ count: count || 0 });
