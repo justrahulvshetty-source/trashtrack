@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TrashTrack — Subscribe</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0c;--s1:#111114;--g:#00D084;--gd:rgba(0,208,132,.08);--r:#ef4444;--w:#fafafa;--t1:#d4d4d8;--t2:#71717a;--t3:#3f3f46;--brd:rgba(255,255,255,.06)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);min-height:100dvh}
+.header{padding:44px 20px 16px;text-align:center}
+.logo{font-size:18px;font-weight:800;color:var(--w)}.logo span{color:var(--g)}
+.header__sub{font-size:13px;color:var(--t2);margin-top:4px}
+.steps{display:flex;justify-content:center;gap:6px;padding:0 20px 20px}
+.step{height:3px;border-radius:100px;flex:1;max-width:50px;background:var(--t3);transition:background .3s}
+.step.active{background:var(--g)}.step.done{background:var(--g);opacity:.4}
+.screen{display:none;padding:0 20px 32px}.screen.active{display:block}
+/* Vehicle search */
+.search-box{max-width:380px;margin:0 auto;text-align:center}
+.search-box__title{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px}
+.search-box__sub{font-size:13px;color:var(--t2);margin-bottom:24px;line-height:1.5}
+.search-box__input{width:100%;padding:16px;background:var(--s1);border:1.5px solid var(--brd);border-radius:14px;color:var(--w);font-family:inherit;font-size:18px;text-align:center;text-transform:uppercase;letter-spacing:2px;outline:none}
+.search-box__input:focus{border-color:var(--g)}
+.search-box__input::placeholder{font-size:14px;letter-spacing:0}
+.result{margin-top:16px;padding:16px;background:var(--s1);border:1px solid var(--brd);border-radius:14px;display:none}
+.result--ok{border-color:rgba(0,208,132,.2)}
+.result--no{border-color:rgba(239,68,68,.2)}
+.result__status{font-size:14px;font-weight:600;margin-bottom:4px}
+.result__detail{font-size:12px;color:var(--t2)}
+/* Map */
+.map-wrap{position:relative;height:45vh;border-radius:16px;overflow:hidden;margin-bottom:16px;border:1px solid var(--brd)}
+#subMap{height:100%;width:100%}
+.leaflet-tile-pane{filter:saturate(.3) brightness(.55) contrast(1.1)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+.center-pin{position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);z-index:1000;font-size:32px;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4))}
+.locate-btn{position:absolute;top:12px;right:12px;z-index:1000;width:40px;height:40px;background:var(--s1);border:1px solid var(--brd);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}
+.coords{background:var(--s1);border:1px solid var(--brd);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--t2)}
+.coords span{color:var(--w);font-size:11px;font-family:monospace;display:block;margin-top:4px}
+/* Form inputs */
+.field{margin-bottom:12px}
+.input{width:100%;padding:14px 16px;background:var(--s1);border:1.5px solid var(--brd);border-radius:12px;color:var(--w);font-family:inherit;font-size:15px;outline:none}
+.input:focus{border-color:var(--g)}.input::placeholder{color:var(--t3)}
+/* Confirm */
+.confirm{background:var(--s1);border:1px solid var(--brd);border-radius:16px;padding:20px;margin-bottom:20px}
+.confirm__row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.confirm__row:last-child{border:none}
+.confirm__label{font-size:12px;color:var(--t2)}
+.confirm__val{font-size:13px;font-weight:600;color:var(--w);text-align:right}
+/* Buttons */
+.btn{width:100%;padding:16px;border:none;border-radius:14px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn--g{background:var(--g);color:#052E16}
+.btn--g:active{transform:scale(.97)}
+.btn--g:disabled{opacity:.4;cursor:not-allowed}
+.btn--outline{background:transparent;border:1px solid var(--brd);color:var(--t2);margin-top:10px}
+.err{color:var(--r);font-size:12px;margin-top:8px;display:none}
+/* Success */
+.success{text-align:center;padding-top:48px}
+.success__icon{font-size:56px;margin-bottom:16px}
+.success__title{font-size:22px;font-weight:800;color:var(--w);margin-bottom:8px}
+.success__sub{font-size:14px;color:var(--t2);line-height:1.6;margin-bottom:24px}
+.success__sub b{color:var(--g)}
+.success__link{display:inline-block;padding:14px 28px;background:var(--g);color:#052E16;font-weight:700;border-radius:12px;text-decoration:none;font-size:14px}
+</style>
+</head>
+<body>
+<div class="header"><div class="logo">Trash<span>Track</span></div><div class="header__sub">Never miss your garbage truck again</div></div>
+
+<div class="steps"><div class="step active" id="s1d"></div><div class="step" id="s2d"></div><div class="step" id="s3d"></div><div class="step" id="s4d"></div></div>
+
+<!-- Step 1: Vehicle -->
+<div class="screen active" id="sc1">
+<div class="search-box">
+<div class="search-box__title">Enter your truck's number</div>
+<div class="search-box__sub">Look at the BBMP garbage truck that comes to your area. Enter its registration number.</div>
+<input type="text" class="search-box__input" id="vnInput" placeholder="KA-01-AB-1234" maxlength="15">
+<div class="result" id="vnResult"><div class="result__status" id="vnStatus"></div><div class="result__detail" id="vnDetail"></div></div>
+<div style="margin-top:16px"><button class="btn btn--g" id="vnBtn" onclick="checkVehicle()" disabled>Check & Continue</button></div>
+</div>
+</div>
+
+<!-- Step 2: Pin location -->
+<div class="screen" id="sc2">
+<div class="map-wrap"><div id="subMap"></div><div class="center-pin">P</div><div class="locate-btn" onclick="locateMe()">L</div></div>
+<div class="coords">Location <span id="coordsText">Move the map to select</span></div>
+<button class="btn btn--g" onclick="goStep(3)">Confirm Location</button>
+<button class="btn btn--outline" onclick="goStep(1)">Back</button>
+</div>
+
+<!-- Step 3: Details -->
+<div class="screen" id="sc3">
+<div style="text-align:center;margin-bottom:24px"><div style="font-size:18px;font-weight:700;color:var(--w)">Your details</div><div style="font-size:13px;color:var(--t2)">So we can send you alerts</div></div>
+<div class="field"><input class="input" type="text" id="fName" placeholder="Your name"></div>
+<div class="field"><input class="input" type="tel" id="fPhone" placeholder="WhatsApp number" maxlength="10"></div>
+<div class="field"><input class="input" type="text" id="fApt" placeholder="Apartment / complex name"></div>
+<div class="err" id="formErr"></div>
+<button class="btn btn--g" onclick="goStep(4)">Continue</button>
+<button class="btn btn--outline" onclick="goStep(2)">Back</button>
+</div>
+
+<!-- Step 4: Confirm -->
+<div class="screen" id="sc4">
+<div style="text-align:center;margin-bottom:20px"><div style="font-size:18px;font-weight:700;color:var(--w)">Confirm subscription</div></div>
+<div class="confirm">
+<div class="confirm__row"><span class="confirm__label">Truck</span><span class="confirm__val" id="cVn"></span></div>
+<div class="confirm__row"><span class="confirm__label">Name</span><span class="confirm__val" id="cName"></span></div>
+<div class="confirm__row"><span class="confirm__label">Phone</span><span class="confirm__val" id="cPhone"></span></div>
+<div class="confirm__row"><span class="confirm__label">Apartment</span><span class="confirm__val" id="cApt"></span></div>
+</div>
+<button class="btn btn--g" id="subBtn" onclick="subscribe()">Subscribe</button>
+<button class="btn btn--outline" onclick="goStep(3)">Back</button>
+</div>
+
+<!-- Step 5: Success -->
+<div class="screen" id="sc5">
+<div class="success">
+<div class="success__icon">Done</div>
+<div class="success__title">You're all set!</div>
+<div class="success__sub">You're now tracking truck <b id="okVn"></b><br><br><b>WhatsApp alert</b> when truck is ~3km away<br><b>Phone call</b> when truck is ~500m away</div>
+<a class="success__link" id="trackLink" href="#">Open Live Tracking</a>
+</div>
+</div>
+
+<script>
+var selectedLat=12.925,selectedLng=77.676,vehicleData=null,map=null;
+
+document.getElementById('vnInput').addEventListener('input',function(){document.getElementById('vnBtn').disabled=this.value.trim().length<4;document.getElementById('vnResult').style.display='none'});
+document.getElementById('vnInput').addEventListener('keydown',function(e){if(e.key==='Enter')checkVehicle()});
+
+async function checkVehicle(){
+  var vn=document.getElementById('vnInput').value.trim();if(!vn)return;
+  var r=await fetch('/api/vehicle/'+encodeURIComponent(vn));var d=await r.json();
+  var res=document.getElementById('vnResult');res.style.display='block';
+  if(d.found){
+    vehicleData=d;res.className='result result--ok';
+    document.getElementById('vnStatus').textContent='Truck found!';document.getElementById('vnStatus').style.color='var(--g)';
+    document.getElementById('vnDetail').textContent=d.vehicle_number+' | '+d.driver_name+(d.wards?' | '+d.wards.name:'');
+    document.getElementById('vnBtn').textContent='Subscribe to this truck';
+    document.getElementById('vnBtn').onclick=function(){goStep(2)};document.getElementById('vnBtn').disabled=false;
+  }else{
+    vehicleData=null;res.className='result result--no';
+    document.getElementById('vnStatus').textContent='Truck not tracked yet';document.getElementById('vnStatus').style.color='var(--r)';
+    document.getElementById('vnDetail').textContent='This truck is not in our system yet.';
+  }
+}
+
+function initMap(){
+  if(map)return;
+  map=L.map('subMap',{zoomControl:false,attributionControl:false}).setView([12.925,77.676],14);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+  map.on('move',function(){var c=map.getCenter();selectedLat=c.lat;selectedLng=c.lng;document.getElementById('coordsText').textContent=c.lat.toFixed(5)+', '+c.lng.toFixed(5)});
+  locateMe();
+}
+
+function locateMe(){if(!navigator.geolocation)return;navigator.geolocation.getCurrentPosition(function(p){if(map)map.flyTo([p.coords.latitude,p.coords.longitude],16)},function(){},{enableHighAccuracy:true})}
+
+function goStep(n){
+  if(n===2)initMap();
+  if(n===4){
+    var name=document.getElementById('fName').value.trim(),phone=document.getElementById('fPhone').value.trim(),apt=document.getElementById('fApt').value.trim();
+    if(!name||!phone){document.getElementById('formErr').textContent='Enter name and phone';document.getElementById('formErr').style.display='block';return}
+    if(phone.length!==10||!/^\d+$/.test(phone)){document.getElementById('formErr').textContent='Enter valid 10-digit number';document.getElementById('formErr').style.display='block';return}
+    document.getElementById('formErr').style.display='none';
+    document.getElementById('cVn').textContent=vehicleData.vehicle_number;
+    document.getElementById('cName').textContent=name;
+    document.getElementById('cPhone').textContent='+91 '+phone;
+    document.getElementById('cApt').textContent=apt||'-';
+  }
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+  document.getElementById('sc'+n).classList.add('active');
+  for(var i=1;i<=4;i++){var dot=document.getElementById('s'+i+'d');dot.classList.remove('active','done');if(i<n)dot.classList.add('done');if(i===n)dot.classList.add('active')}
+  if(n===2)setTimeout(function(){if(map)map.invalidateSize()},100);
+}
+
+async function subscribe(){
+  var btn=document.getElementById('subBtn');btn.disabled=true;btn.textContent='Subscribing...';
+  var data={name:document.getElementById('fName').value.trim(),phone:document.getElementById('fPhone').value.trim(),lat:selectedLat,lng:selectedLng,vehicleNumber:vehicleData.vehicle_number,apartment:document.getElementById('fApt').value.trim()};
+  try{
+    var r=await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    var d=await r.json();
+    if(r.ok){
+      var vn=vehicleData.vehicle_number.replace(/[^A-Z0-9]/g,'');
+      document.getElementById('okVn').textContent=vehicleData.vehicle_number;
+      document.getElementById('trackLink').href='/track/'+vn;
+      goStep(5);
+    }else{btn.disabled=false;btn.textContent='Subscribe';alert(d.error||'Error')}
+  }catch(e){btn.disabled=false;btn.textContent='Subscribe';alert('Network error')}
+}
+</script>
+</body>
+</html>

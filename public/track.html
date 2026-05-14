@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TrashTrack — Live Tracking</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0c;--s1:#111114;--g:#00D084;--gd:rgba(0,208,132,.08);--r:#ef4444;--am:#FFB300;--w:#fafafa;--t1:#d4d4d8;--t2:#71717a;--t3:#3f3f46;--brd:rgba(255,255,255,.06)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);height:100dvh;width:100vw;overflow:hidden;position:relative}
+#map{position:absolute;inset:0;z-index:1}
+.leaflet-tile-pane{filter:saturate(.3) brightness(.55) contrast(1.1)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+.top{position:fixed;top:0;left:0;right:0;z-index:1000;padding:44px 20px 14px;background:linear-gradient(rgba(10,10,12,.95),rgba(10,10,12,.6),transparent);display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:16px;font-weight:800;color:var(--w)}.logo span{color:var(--g)}
+.live{display:flex;align-items:center;gap:6px;background:rgba(0,208,132,.08);border:1px solid rgba(0,208,132,.2);padding:5px 12px;border-radius:100px;font-size:11px;font-weight:600;color:var(--g);text-transform:uppercase;letter-spacing:.5px}
+.live__dot{width:6px;height:6px;background:var(--g);border-radius:50%;animation:p 1.5s ease-in-out infinite}
+.offline{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2);color:var(--r)}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+.bottom{position:fixed;bottom:0;left:0;right:0;z-index:1000;padding:0 12px 24px}
+.card{background:var(--s1);border:1px solid var(--brd);border-radius:20px;padding:20px;backdrop-filter:blur(20px)}
+.eta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.eta__label{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.eta__val{font-size:36px;font-weight:800;color:var(--g);line-height:1}
+.eta__unit{font-size:14px;color:var(--t2);font-weight:400;margin-left:4px}
+.dist__val{font-size:20px;font-weight:700;color:var(--w);text-align:right}
+.dist__label{font-size:11px;color:var(--t2);text-align:right;text-transform:uppercase;letter-spacing:.5px}
+.divider{height:1px;background:var(--brd);margin-bottom:14px}
+.info-row{display:flex;align-items:center;gap:12px}
+.info-icon{width:42px;height:42px;background:var(--gd);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.info__status{font-size:14px;font-weight:700;color:var(--w);margin-bottom:2px}
+.info__detail{font-size:12px;color:var(--t2)}
+.updated{font-size:10px;color:var(--t3);text-align:center;margin-top:12px;letter-spacing:.5px;text-transform:uppercase}
+.updated .blink{animation:p 1s step-end infinite}
+.waiting{text-align:center;padding:32px 16px}
+.waiting__icon{font-size:40px;margin-bottom:12px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.waiting__title{font-size:16px;font-weight:700;color:var(--w);margin-bottom:6px}
+.waiting__sub{font-size:13px;color:var(--t2);line-height:1.5}
+/* Search overlay */
+.search{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px}
+.search.show{display:flex}
+.search__card{text-align:center;max-width:360px;width:100%}
+.search__title{font-size:20px;font-weight:800;color:var(--w);margin-bottom:8px}.search__title span{color:var(--g)}
+.search__sub{font-size:14px;color:var(--t2);margin-bottom:28px}
+.search__input{width:100%;padding:16px;background:var(--s1);border:1.5px solid var(--brd);border-radius:14px;color:var(--w);font-family:inherit;font-size:18px;text-align:center;text-transform:uppercase;letter-spacing:2px;outline:none}
+.search__input:focus{border-color:var(--g)}
+.search__input::placeholder{font-size:14px;letter-spacing:0}
+.search__btn{width:100%;padding:14px;margin-top:14px;background:var(--g);color:#052E16;font-family:inherit;font-size:15px;font-weight:700;border:none;border-radius:12px;cursor:pointer}
+.search__err{color:var(--r);font-size:13px;margin-top:10px;display:none}
+.truck-dot{width:40px;height:40px;background:var(--g);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px rgba(0,208,132,.3);border:3px solid rgba(255,255,255,.8);animation:truckPulse 2s ease-in-out infinite}
+@keyframes truckPulse{0%,100%{box-shadow:0 0 20px rgba(0,208,132,.3)}50%{box-shadow:0 0 35px rgba(0,208,132,.5)}}
+.home-dot{width:32px;height:32px;background:var(--w);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,.3);border:3px solid var(--bg)}
+</style>
+</head>
+<body>
+
+<div class="search show" id="searchOverlay">
+<div class="search__card">
+<div class="search__title">Trash<span>Track</span></div>
+<div class="search__sub">Enter your garbage truck's registration number</div>
+<input type="text" class="search__input" id="searchInput" placeholder="KA-01-AB-1234">
+<button class="search__btn" onclick="searchTruck()">Track Truck</button>
+<div class="search__err" id="searchErr"></div>
+</div>
+</div>
+
+<div id="map"></div>
+
+<div class="top">
+<div class="logo">Trash<span>Track</span></div>
+<div class="live" id="statusBadge"><div class="live__dot"></div>Live</div>
+</div>
+
+<div class="bottom">
+<div class="card" id="trackCard" style="display:none">
+<div class="eta-row">
+<div><div class="eta__label">Estimated Arrival</div><div class="eta__val" id="eta">--<span class="eta__unit">min</span></div></div>
+<div><div class="dist__val" id="dist">--</div><div class="dist__label">away</div></div>
+</div>
+<div class="divider"></div>
+<div class="info-row">
+<div class="info-icon">T</div>
+<div><div class="info__status" id="truckStatus">Truck is on the move</div><div class="info__detail" id="truckDetail">Loading...</div></div>
+</div>
+<div class="updated">Updating live <span class="blink">&#9679;</span></div>
+</div>
+
+<div class="card" id="waitCard">
+<div class="waiting">
+<div class="waiting__icon">T</div>
+<div class="waiting__title">Waiting for truck...</div>
+<div class="waiting__sub">The truck hasn't started its shift yet. You'll see live tracking when it begins.</div>
+</div>
+</div>
+</div>
+
+<script>
+var pathVn=decodeURIComponent(location.pathname.split('/')[2]||'');
+var urlParams=new URLSearchParams(location.search);
+var subId=urlParams.get('sub');
+var subLat=12.9250,subLng=77.6760;
+var map,homeMarker,truckMarker,trailLine,socket=io();
+
+if(pathVn){document.getElementById('searchOverlay').classList.remove('show');initTracking(pathVn)}
+document.getElementById('searchInput').addEventListener('keydown',function(e){if(e.key==='Enter')searchTruck()});
+
+function searchTruck(){
+  var vn=document.getElementById('searchInput').value.trim();
+  if(!vn)return;
+  var clean=vn.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  fetch('/api/vehicle/'+clean).then(function(r){return r.json()}).then(function(d){
+    if(d.found){document.getElementById('searchOverlay').classList.remove('show');initTracking(clean)}
+    else{document.getElementById('searchErr').textContent='Truck not tracked yet';document.getElementById('searchErr').style.display='block'}
+  }).catch(function(){document.getElementById('searchErr').textContent='Error. Try again.';document.getElementById('searchErr').style.display='block'});
+}
+
+function initTracking(vn){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([subLat,subLng],14);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+
+  var homeIcon=L.divIcon({html:'<div class="home-dot">H</div>',className:'',iconSize:[32,32],iconAnchor:[16,16]});
+  homeMarker=L.marker([subLat,subLng],{icon:homeIcon}).addTo(map);
+
+  if(subId){fetch('/api/subscriber/'+subId).then(function(r){return r.json()}).then(function(s){if(s.lat&&s.lng){subLat=s.lat;subLng=s.lng;homeMarker.setLatLng([subLat,subLng]);map.setView([subLat,subLng],14)}}).catch(function(){})}
+
+  fetch('/api/truck/'+vn).then(function(r){return r.json()}).then(function(t){
+    document.getElementById('truckDetail').textContent=(t.vehicle_number||vn)+' | '+(t.wards?t.wards.name:'')+(t.driver_name?' | '+t.driver_name:'');
+    if(t.is_active&&t.current_lat&&t.current_lat!==0)showTruck(t.current_lat,t.current_lng);
+  }).catch(function(){});
+
+  socket.on('truck-location',function(data){
+    var incoming=(data.vehicleNumber||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(incoming!==vn)return;
+    if(!data.lat||data.lat===0)return;
+    showTruck(data.lat,data.lng);
+  });
+
+  socket.on('shift-ended',function(data){
+    var incoming=(data.vehicleNumber||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(incoming!==vn)return;
+    document.getElementById('trackCard').style.display='none';
+    document.getElementById('waitCard').style.display='block';
+    document.getElementById('statusBadge').className='live offline';
+    document.getElementById('statusBadge').innerHTML='Offline';
+  });
+
+  socket.on('shift-started',function(data){
+    var incoming=(data.vehicleNumber||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(incoming!==vn)return;
+    document.getElementById('statusBadge').className='live';
+    document.getElementById('statusBadge').innerHTML='<div class="live__dot"></div>Live';
+  });
+}
+
+var truckIcon=L.divIcon({html:'<div class="truck-dot">T</div>',className:'',iconSize:[40,40],iconAnchor:[20,20]});
+
+function showTruck(lat,lng){
+  document.getElementById('trackCard').style.display='block';
+  document.getElementById('waitCard').style.display='none';
+
+  if(!truckMarker){truckMarker=L.marker([lat,lng],{icon:truckIcon}).addTo(map);trailLine=L.polyline([[lat,lng],[subLat,subLng]],{color:'#00D084',weight:3,dashArray:'10,6',opacity:.5}).addTo(map)}
+  else{truckMarker.setLatLng([lat,lng]);trailLine.setLatLngs([[lat,lng],[subLat,subLng]])}
+
+  var d=getDist(lat,lng,subLat,subLng);
+  var eta=Math.max(1,Math.round((d/1000)/15*60));
+
+  document.getElementById('eta').innerHTML=eta+'<span class="eta__unit">min</span>';
+  document.getElementById('dist').textContent=d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km';
+
+  var st=document.getElementById('truckStatus');
+  if(d<200){st.textContent='Truck is at your location!';st.style.color='var(--g)'}
+  else if(d<800){st.textContent='Almost there! Head downstairs';st.style.color='var(--am)'}
+  else{st.textContent='Truck is on the move';st.style.color='var(--w)'}
+
+  var bounds=L.latLngBounds([[lat,lng],[subLat,subLng]]);
+  map.fitBounds(bounds,{padding:[80,80],maxZoom:16});
+}
+
+function getDist(lat1,lng1,lat2,lng2){var R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrashTrack Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0c;--s1:#111114;--s2:#18181b;--g:#00D084;--gd:rgba(0,208,132,.08);--r:#ef4444;--w:#fafafa;--t1:#d4d4d8;--t2:#71717a;--t3:#3f3f46;--brd:rgba(255,255,255,.06)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh}
+/* Login */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login__card{background:var(--s1);border:1px solid var(--brd);border-radius:20px;padding:40px;width:100%;max-width:360px;text-align:center}
+.login__title{font-size:24px;font-weight:800;color:var(--w);margin-bottom:24px}
+.login__title span{color:var(--g)}
+.login__input{width:100%;padding:14px;background:var(--bg);border:1.5px solid var(--brd);border-radius:12px;color:var(--w);font-family:inherit;font-size:16px;outline:none;text-align:center;letter-spacing:2px;margin-bottom:16px}
+.login__input:focus{border-color:var(--g)}
+.login__btn{width:100%;padding:14px;background:var(--g);color:#052E16;font-family:inherit;font-size:15px;font-weight:700;border:none;border-radius:12px;cursor:pointer}
+.login__err{color:var(--r);font-size:13px;margin-top:12px;display:none}
+/* Dashboard */
+.dash{display:none;min-height:100vh}
+.dash__header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--brd);background:var(--s1)}
+.dash__logo{font-size:18px;font-weight:800;color:var(--w)}.dash__logo span{color:var(--g)}
+.dash__actions{display:flex;gap:8px}
+.btn{padding:8px 16px;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn--g{background:var(--g);color:#052E16}
+.btn--r{background:var(--r);color:#fff}
+.btn--outline{background:transparent;border:1px solid var(--brd);color:var(--t2)}
+.btn--sm{padding:6px 12px;font-size:12px;border-radius:8px}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px 24px}
+.stat{background:var(--s1);border:1px solid var(--brd);border-radius:14px;padding:16px;text-align:center}
+.stat__num{font-size:28px;font-weight:800;color:var(--g)}
+.stat__label{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+/* Map */
+.map-wrap{margin:16px 24px;border-radius:16px;overflow:hidden;border:1px solid var(--brd);height:350px}
+#adminMap{height:100%;width:100%;background:var(--s1)}
+.leaflet-tile-pane{filter:saturate(.3) brightness(.6) contrast(1.1)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+/* Sections */
+.section{padding:0 24px 24px}
+.section__title{font-size:15px;font-weight:700;color:var(--w);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{background:var(--gd);color:var(--g);font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px}
+/* Table */
+.tbl-wrap{background:var(--s1);border:1px solid var(--brd);border-radius:14px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 14px;font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--brd)}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.02)}
+tr:last-child td{border:none}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot--on{background:var(--g)}.dot--off{background:var(--t3)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+.empty{text-align:center;padding:24px;color:var(--t3);font-size:13px}
+/* Form rows */
+.form-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.form-input{flex:1;min-width:100px;padding:10px 12px;background:var(--bg);border:1px solid var(--brd);border-radius:10px;color:var(--w);font-family:inherit;font-size:13px;outline:none}
+.form-input:focus{border-color:var(--g)}
+.form-input::placeholder{color:var(--t3)}
+.form-select{padding:10px 12px;background:var(--bg);border:1px solid var(--brd);border-radius:10px;color:var(--w);font-family:inherit;font-size:13px;outline:none;appearance:none;min-width:120px}
+/* Alerts feed */
+.alert-feed{max-height:250px;overflow-y:auto}
+.alert-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.02)}
+.alert-item:last-child{border:none}
+.alert-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.alert-icon--wa{background:rgba(37,211,102,.12)}.alert-icon--call{background:rgba(255,179,0,.12)}
+.alert-text{font-size:12px;flex:1;color:var(--t1)}
+.alert-time{font-size:11px;color:var(--t3)}
+/* Demo banner */
+.demo-banner{background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.15);border-radius:12px;padding:12px 16px;margin:16px 24px;display:flex;align-items:center;justify-content:space-between;display:none}
+.demo-banner.active{display:flex}
+.demo-banner__text{font-size:13px;color:#FFB300;font-weight:600}
+@media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}.form-row{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div class="login" id="loginScreen">
+<div class="login__card">
+<div class="login__title">Trash<span>Track</span> Admin</div>
+<input type="password" class="login__input" id="loginPw" placeholder="Password" autofocus>
+<button class="login__btn" onclick="login()">Login</button>
+<div class="login__err" id="loginErr">Wrong password</div>
+</div>
+</div>
+
+<div class="dash" id="dash">
+<div class="dash__header">
+<div class="dash__logo">Trash<span>Track</span> Admin</div>
+<div class="dash__actions">
+<button class="btn btn--g" id="demoBtn" onclick="toggleDemo()">Start Demo</button>
+<button class="btn btn--outline" onclick="logout()">Logout</button>
+</div>
+</div>
+
+<div class="demo-banner" id="demoBanner">
+<div class="demo-banner__text">Demo mode active — simulated truck running</div>
+<button class="btn btn--sm btn--r" onclick="toggleDemo()">Stop Demo</button>
+</div>
+
+<div class="stats">
+<div class="stat"><div class="stat__num" id="sTotal">0</div><div class="stat__label">Trucks</div></div>
+<div class="stat"><div class="stat__num" id="sActive">0</div><div class="stat__label">Active Now</div></div>
+<div class="stat"><div class="stat__num" id="sSubs">0</div><div class="stat__label">Subscribers</div></div>
+<div class="stat"><div class="stat__num" id="sAlerts">0</div><div class="stat__label">Alerts Today</div></div>
+<div class="stat"><div class="stat__num" id="sRevenue">0</div><div class="stat__label">Revenue/mo</div></div>
+</div>
+
+<div class="map-wrap"><div id="adminMap"></div></div>
+
+<div class="section">
+<div class="section__title">Add Truck</div>
+<div class="form-row">
+<input class="form-input" id="tVn" placeholder="KA-01-AB-1234" style="text-transform:uppercase">
+<input class="form-input" id="tName" placeholder="Driver name">
+<input class="form-input" id="tPhone" placeholder="Driver phone">
+<select class="form-select" id="tWard"><option value="">Select Ward</option></select>
+<button class="btn btn--g" onclick="addTruck()">Add</button>
+</div>
+</div>
+
+<div class="section">
+<div class="section__title">Trucks <span class="badge" id="truckCount">0</span></div>
+<div class="tbl-wrap">
+<table><thead><tr><th>Status</th><th>Vehicle</th><th>Driver</th><th>Ward</th><th>Driver Link</th><th>Track Link</th></tr></thead>
+<tbody id="truckTable"><tr><td colspan="6" class="empty">No trucks</td></tr></tbody></table>
+</div>
+</div>
+
+<div class="section">
+<div class="section__title">Subscribers <span class="badge" id="subCount">0</span></div>
+<div class="tbl-wrap">
+<table><thead><tr><th>Name</th><th>Phone</th><th>Apartment</th><th>Vehicle</th><th>Joined</th></tr></thead>
+<tbody id="subTable"><tr><td colspan="5" class="empty">No subscribers</td></tr></tbody></table>
+</div>
+</div>
+
+<div class="section">
+<div class="section__title">Recent Alerts</div>
+<div class="tbl-wrap"><div class="alert-feed" id="alertFeed"><div class="empty">No alerts yet</div></div></div>
+</div>
+</div>
+
+<script>
+var token=sessionStorage.getItem('tt_token'),socket=io(),map,markers={};
+document.getElementById('loginPw').addEventListener('keydown',function(e){if(e.key==='Enter')login()});
+if(token)showDash();
+
+async function login(){
+  var pw=document.getElementById('loginPw').value;
+  var r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  var d=await r.json();
+  if(d.ok){token=d.token;sessionStorage.setItem('tt_token',token);showDash()}
+  else{document.getElementById('loginErr').style.display='block'}
+}
+function logout(){token=null;sessionStorage.removeItem('tt_token');document.getElementById('dash').style.display='none';document.getElementById('loginScreen').style.display='flex'}
+function showDash(){document.getElementById('loginScreen').style.display='none';document.getElementById('dash').style.display='block';initMap();loadData()}
+function ah(){return{'Content-Type':'application/json','x-admin-token':token}}
+
+function initMap(){
+  map=L.map('adminMap',{zoomControl:false}).setView([12.9716,77.5946],12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+}
+
+async function loadData(){
+  var r=await fetch('/api/admin/stats',{headers:{'x-admin-token':token}});
+  if(r.status===401){logout();return}
+  var d=await r.json();
+
+  document.getElementById('sTotal').textContent=d.totalTrucks;
+  document.getElementById('sActive').textContent=d.activeTrucks;
+  document.getElementById('sSubs').textContent=d.totalSubscribers;
+  document.getElementById('sAlerts').textContent=d.alertsToday;
+  document.getElementById('sRevenue').textContent='Rs '+d.revenue;
+
+  // Demo state
+  document.getElementById('demoBtn').textContent=d.demoRunning?'Stop Demo':'Start Demo';
+  document.getElementById('demoBtn').className=d.demoRunning?'btn btn--r':'btn btn--g';
+  document.getElementById('demoBanner').className=d.demoRunning?'demo-banner active':'demo-banner';
+
+  // Wards dropdown
+  var sel=document.getElementById('tWard');
+  if(sel.options.length<=1&&d.wards){d.wards.forEach(function(w){var o=document.createElement('option');o.value=w.id;o.textContent=w.ward_number+' - '+w.name;sel.appendChild(o)})}
+
+  // Trucks table + map markers
+  document.getElementById('truckCount').textContent=d.trucks.length;
+  if(d.trucks.length>0){
+    document.getElementById('truckTable').innerHTML=d.trucks.map(function(t){
+      var vn=t.vehicle_normalized||t.vehicle_number.replace(/[^A-Z0-9]/g,'');
+      var ward=t.wards?t.wards.ward_number+' - '+t.wards.name:'-';
+      if(t.is_active&&t.current_lat&&t.current_lat!==0){
+        if(markers[vn]){markers[vn].setLatLng([t.current_lat,t.current_lng])}
+        else{markers[vn]=L.circleMarker([t.current_lat,t.current_lng],{radius:8,color:'#00D084',fillColor:'#00D084',fillOpacity:.8}).addTo(map).bindPopup(t.vehicle_number+'<br>'+t.driver_name)}
+      }
+      return '<tr><td><span class="dot dot--'+(t.is_active?'on':'off')+'"></span>'+(t.is_active?'Live':'Off')+'</td><td class="mono">'+t.vehicle_number+'</td><td>'+t.driver_name+'</td><td>'+ward+'</td><td><button class="btn btn--sm btn--outline" onclick="copyL(\'/driver/'+vn+'\')">Copy</button></td><td><button class="btn btn--sm btn--outline" onclick="copyL(\'/track/'+vn+'\')">Copy</button></td></tr>'
+    }).join('');
+  }
+
+  // Subscribers
+  document.getElementById('subCount').textContent=d.subscribers.length;
+  if(d.subscribers.length>0){
+    document.getElementById('subTable').innerHTML=d.subscribers.map(function(s){
+      return '<tr><td>'+s.name+'</td><td class="mono">'+s.phone+'</td><td>'+(s.apartment||'-')+'</td><td class="mono">'+(s.vehicle_number||'-')+'</td><td style="color:var(--t3)">'+new Date(s.created_at).toLocaleDateString()+'</td></tr>'
+    }).join('');
+    // Add subscriber markers to map
+    d.subscribers.forEach(function(s){if(s.lat&&s.lng){L.circleMarker([s.lat,s.lng],{radius:4,color:'#fff',fillColor:'#fff',fillOpacity:.5}).addTo(map)}});
+  }
+
+  // Alerts
+  if(d.alerts.length>0){
+    document.getElementById('alertFeed').innerHTML=d.alerts.map(function(a){
+      return '<div class="alert-item"><div class="alert-icon alert-icon--'+(a.type==='whatsapp'?'wa':'call')+'">'+(a.type==='whatsapp'?'MSG':'CALL')+'</div><div class="alert-text">'+a.type+' — '+a.message+'</div><div class="alert-time">'+new Date(a.sent_at).toLocaleTimeString()+'</div></div>'
+    }).join('');
+  }
+}
+
+async function addTruck(){
+  var vn=document.getElementById('tVn').value.trim(),name=document.getElementById('tName').value.trim(),phone=document.getElementById('tPhone').value.trim(),ward=document.getElementById('tWard').value;
+  if(!vn||!name)return alert('Vehicle number and driver name required');
+  var r=await fetch('/api/admin/truck',{method:'POST',headers:ah(),body:JSON.stringify({vehicleNumber:vn,driverName:name,driverPhone:phone,wardId:ward||null})});
+  var d=await r.json();
+  if(d.ok){alert('Truck added! Driver link: '+location.origin+'/driver/'+vn.toUpperCase().replace(/[^A-Z0-9]/g,''));['tVn','tName','tPhone'].forEach(function(id){document.getElementById(id).value=''});loadData()}
+  else alert(d.error||'Failed');
+}
+
+async function toggleDemo(){
+  var isRunning=document.getElementById('demoBtn').textContent==='Stop Demo';
+  var r=await fetch('/api/admin/demo/'+(isRunning?'stop':'start'),{method:'POST',headers:ah()});
+  loadData();
+}
+
+function copyL(path){var u=location.origin+path;navigator.clipboard.writeText(u).then(function(){alert('Copied: '+u)}).catch(function(){prompt('Copy:',u)})}
+
+socket.on('truck-location',function(){loadData()});
+socket.on('alert-triggered',function(){loadData()});
+socket.on('shift-started',function(){loadData()});
+socket.on('shift-ended',function(){loadData()});
+setInterval(loadData,15000);
+</script>
+</body>
+</html>

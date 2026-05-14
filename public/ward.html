@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrashTrack — Ward View</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0c;--s1:#111114;--g:#00D084;--w:#fafafa;--t1:#d4d4d8;--t2:#71717a;--brd:rgba(255,255,255,.06)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1)}
+.header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brd);background:var(--s1)}
+.logo{font-size:16px;font-weight:800;color:var(--w)}.logo span{color:var(--g)}
+.ward-name{font-size:14px;color:var(--g);font-weight:600}
+#wardMap{height:calc(100vh - 54px);width:100%}
+.leaflet-tile-pane{filter:saturate(.3) brightness(.55) contrast(1.1)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+.truck-marker{width:36px;height:36px;background:var(--g);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 16px rgba(0,208,132,.3);border:2px solid rgba(255,255,255,.8)}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="logo">Trash<span>Track</span></div>
+<div class="ward-name" id="wardName">Loading...</div>
+</div>
+<div id="wardMap"></div>
+<script>
+var wardNum=location.pathname.split('/')[2]||'150';
+var map=L.map('wardMap',{zoomControl:false,attributionControl:false}).setView([12.9716,77.5946],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+var markers={},socket=io();
+
+// Load ward info
+fetch('/api/wards').then(function(r){return r.json()}).then(function(wards){
+  var w=wards.find(function(w){return w.ward_number===wardNum});
+  if(w)document.getElementById('wardName').textContent='Ward '+w.ward_number+' — '+w.name;
+});
+
+socket.on('truck-location',function(data){
+  if(!data.lat||data.lat===0)return;
+  var vn=(data.vehicleNumber||'').replace(/[^A-Z0-9]/g,'');
+  var icon=L.divIcon({html:'<div class="truck-marker">T</div>',className:'',iconSize:[36,36],iconAnchor:[18,18]});
+  if(markers[vn]){markers[vn].setLatLng([data.lat,data.lng])}
+  else{markers[vn]=L.marker([data.lat,data.lng],{icon:icon}).addTo(map).bindPopup(data.vehicleNumber+'<br>'+(data.driverName||''));map.setView([data.lat,data.lng],14)}
+});
+</script>
+</body>
+</html>

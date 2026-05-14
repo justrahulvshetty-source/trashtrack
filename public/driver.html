@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TrashTrack Driver</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0c;--s1:#111114;--g:#00D084;--gd:rgba(0,208,132,.08);--r:#ef4444;--w:#fafafa;--t1:#d4d4d8;--t2:#71717a;--t3:#3f3f46;--brd:rgba(255,255,255,.06)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:400px;text-align:center}
+.logo{font-size:20px;font-weight:800;color:var(--w);margin-bottom:4px}.logo span{color:var(--g)}
+.sub{font-size:13px;color:var(--t2);margin-bottom:8px}
+.vehicle-badge{font-size:18px;font-weight:700;color:var(--g);background:var(--gd);border:1px solid rgba(0,208,132,.15);padding:8px 20px;border-radius:12px;display:inline-block;margin-bottom:8px;letter-spacing:1px}
+.ward-badge{font-size:12px;color:var(--t2);margin-bottom:32px}
+.status-card{background:var(--s1);border:1px solid var(--brd);border-radius:20px;padding:32px 24px;margin-bottom:24px}
+.status-icon{font-size:56px;margin-bottom:16px}
+.status-text{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px}
+.status-sub{font-size:13px;color:var(--t2);line-height:1.5}
+.btn{width:100%;padding:18px;border:none;border-radius:14px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn--start{background:var(--g);color:#052E16}
+.btn--start:active{transform:scale(.97)}
+.btn--stop{background:var(--r);color:#fff}
+.btn--stop:active{transform:scale(.97)}
+.stats{display:flex;gap:12px;margin-top:20px}
+.stat{flex:1;background:var(--s1);border:1px solid var(--brd);border-radius:12px;padding:14px;text-align:center}
+.stat__val{font-size:20px;font-weight:800;color:var(--g)}
+.stat__label{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.gps{display:none;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--t2);margin-top:16px}
+.gps.active{display:flex}
+.gps__dot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.lang{position:fixed;top:16px;right:16px;background:var(--s1);border:1px solid var(--brd);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--t2);cursor:pointer}
+.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15);border-radius:12px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--r);display:none}
+</style>
+</head>
+<body>
+
+<div class="lang" onclick="toggleLang()" id="langBtn">ಕನ್ನಡ</div>
+
+<div class="container">
+<div class="logo">Trash<span>Track</span></div>
+<div class="sub" id="subTitle">Driver Panel</div>
+<div class="vehicle-badge" id="vBadge">Loading...</div>
+<div class="ward-badge" id="wBadge"></div>
+
+<div class="err" id="errBox"></div>
+
+<div class="status-card">
+<div class="status-icon" id="sIcon">&#x1F534;</div>
+<div class="status-text" id="sText">Shift not started</div>
+<div class="status-sub" id="sSub">Tap the button below to begin your route</div>
+</div>
+
+<button class="btn btn--start" id="mainBtn" onclick="toggleShift()">
+<span id="btnText">START SHIFT</span>
+</button>
+
+<div class="stats" id="statsRow" style="display:none">
+<div class="stat"><div class="stat__val" id="updateCount">0</div><div class="stat__label" id="lUpdates">Updates</div></div>
+<div class="stat"><div class="stat__val" id="duration">0:00</div><div class="stat__label" id="lDuration">Duration</div></div>
+</div>
+
+<div class="gps" id="gpsBar">
+<div class="gps__dot"></div>
+<span id="gpsText">GPS active</span>
+</div>
+</div>
+
+<script>
+var vehicleNumber=decodeURIComponent(location.pathname.split('/')[2]||'');
+var isActive=false,watchId=null,updates=0,startTime=null,durInt=null,sendInt=null,lang='en';
+
+var S={
+  en:{sub:'Driver Panel',off:'Shift not started',tap:'Tap the button below to begin your route',start:'START SHIFT',on:'Shift is LIVE',sending:'Location is being shared',stop:'STOP SHIFT',gps:'GPS active',gpsErr:'GPS error',updates:'Updates',duration:'Duration',langBtn:'ಕನ್ನಡ'},
+  kn:{sub:'ಚಾಲಕ ಪ್ಯಾನೆಲ್',off:'ಶಿಫ್ಟ್ ಶುರು ಆಗಿಲ್ಲ',tap:'ರೂಟ್ ಶುರು ಮಾಡಲು ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ',start:'ಶಿಫ್ಟ್ ಶುರು',on:'ಶಿಫ್ಟ್ ಲೈವ್ ಆಗಿದೆ',sending:'ಲೊಕೇಶನ್ ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ',stop:'ಶಿಫ್ಟ್ ನಿಲ್ಲಿಸಿ',gps:'GPS ಆಕ್ಟಿವ್',gpsErr:'GPS ದೋಷ',updates:'ಅಪ್ಡೇಟ್ಸ್',duration:'ಅವಧಿ',langBtn:'English'}
+};
+
+// Load truck info
+fetch('/api/truck/'+vehicleNumber).then(function(r){return r.json()}).then(function(d){
+  document.getElementById('vBadge').textContent=d.vehicle_number||vehicleNumber;
+  if(d.wards)document.getElementById('wBadge').textContent='Ward '+d.wards.ward_number+' — '+d.wards.name+' ('+d.wards.zone+')';
+}).catch(function(){document.getElementById('vBadge').textContent=vehicleNumber});
+
+function toggleLang(){lang=lang==='en'?'kn':'en';updateUI()}
+
+function updateUI(){
+  var s=S[lang];
+  document.getElementById('subTitle').textContent=s.sub;
+  document.getElementById('langBtn').textContent=s.langBtn;
+  document.getElementById('lUpdates').textContent=s.updates;
+  document.getElementById('lDuration').textContent=s.duration;
+  if(!isActive){document.getElementById('sText').textContent=s.off;document.getElementById('sSub').textContent=s.tap;document.getElementById('btnText').textContent=s.start}
+  else{document.getElementById('sText').textContent=s.on;document.getElementById('sSub').textContent=s.sending;document.getElementById('btnText').textContent=s.stop;document.getElementById('gpsText').textContent=s.gps}
+}
+
+async function toggleShift(){
+  if(!isActive){
+    if(!navigator.geolocation){showErr('GPS not supported');return}
+
+    try{await fetch('/api/driver/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicleNumber:vehicleNumber})})}catch(e){}
+
+    isActive=true;startTime=Date.now();updates=0;
+    watchId=navigator.geolocation.watchPosition(onPos,onGpsErr,{enableHighAccuracy:true,maximumAge:5000,timeout:10000});
+    sendInt=setInterval(function(){navigator.geolocation.getCurrentPosition(onPos,onGpsErr,{enableHighAccuracy:true,maximumAge:5000})},10000);
+    durInt=setInterval(function(){var e=Math.floor((Date.now()-startTime)/1000);document.getElementById('duration').textContent=Math.floor(e/60)+':'+(e%60).toString().padStart(2,'0')},1000);
+
+    document.getElementById('sIcon').textContent='\u{1F7E2}';
+    document.getElementById('mainBtn').className='btn btn--stop';
+    document.getElementById('statsRow').style.display='flex';
+    document.getElementById('gpsBar').className='gps active';
+    updateUI();
+    requestWakeLock();
+  }else{
+    isActive=false;
+    if(watchId)navigator.geolocation.clearWatch(watchId);
+    if(durInt)clearInterval(durInt);
+    if(sendInt)clearInterval(sendInt);
+
+    try{await fetch('/api/driver/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicleNumber:vehicleNumber})})}catch(e){}
+
+    document.getElementById('sIcon').textContent='\u{1F534}';
+    document.getElementById('mainBtn').className='btn btn--start';
+    document.getElementById('gpsBar').className='gps';
+    updateUI();
+  }
+}
+
+async function onPos(pos){
+  if(!isActive)return;
+  try{
+    await fetch('/api/driver/location',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicleNumber:vehicleNumber,lat:pos.coords.latitude,lng:pos.coords.longitude})});
+    updates++;document.getElementById('updateCount').textContent=updates;
+  }catch(e){}
+}
+
+function onGpsErr(){document.getElementById('gpsText').textContent=S[lang].gpsErr;document.querySelector('.gps__dot').style.background='var(--r)'}
+function showErr(msg){var b=document.getElementById('errBox');b.textContent=msg;b.style.display='block';setTimeout(function(){b.style.display='none'},5000)}
+
+async function requestWakeLock(){try{if('wakeLock' in navigator)await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&isActive)requestWakeLock()});
+</script>
+</body>
+</html>
